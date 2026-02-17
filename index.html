@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <title>GUARANT • Mini App</title>
+  <link rel="stylesheet" href="/styles.css"/>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="logo">G</div>
+        <div>
+          <div class="title">GUARANT</div>
+          <div class="subtitle">Безопасные сделки • Баланс • Заявки</div>
+        </div>
+      </div>
+      <div class="pill" id="mePill">…</div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="home">Главная</button>
+      <button class="tab" data-tab="deals">Сделки</button>
+      <button class="tab" data-tab="topup">Пополнить</button>
+      <button class="tab" data-tab="profile">Профиль</button>
+    </nav>
+
+    <main class="main">
+      <section class="card" id="balanceCard">
+        <div class="cardHead">
+          <div class="h1">Баланс</div>
+          <div class="muted">внутренний</div>
+        </div>
+        <div class="balanceRow">
+          <div class="big" id="balanceVal">0 ₽</div>
+          <button class="btn primary" id="btnRefresh">Обновить</button>
+        </div>
+        <div class="hint">Пополнение — через заявку. Админ подтверждает и начисляет.</div>
+      </section>
+
+      <section class="tabPanel" data-panel="home">
+        <section class="card">
+          <div class="h2">Быстрые действия</div>
+          <div class="grid">
+            <button class="btn" id="goCreateDeal">➕ Создать сделку</button>
+            <button class="btn" id="goTopup">💳 Пополнить</button>
+            <button class="btn" id="goMyDeals">📄 Мои сделки</button>
+            <button class="btn" id="goSupport">🛟 Поддержка</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="h2">Как это работает</div>
+          <ol class="steps">
+            <li><b>Пополнение</b> → заявка → админ подтверждает.</li>
+            <li><b>Создаёшь сделку</b> и кидаешь ссылку второй стороне.</li>
+            <li><b>Покупатель оплачивает</b> сумму с баланса → в резерв сделки.</li>
+            <li><b>Продавец отмечает “Выполнено”</b>.</li>
+            <li><b>Покупатель подтверждает</b> → деньги продавцу на баланс.</li>
+          </ol>
+        </section>
+      </section>
+
+      <section class="tabPanel hidden" data-panel="deals">
+        <section class="card">
+          <div class="cardHead">
+            <div class="h1">Сделки</div>
+            <button class="btn primary" id="btnNewDeal">➕ Новая</button>
+          </div>
+          <div class="list" id="dealList"></div>
+        </section>
+
+        <section class="card hidden" id="dealEditor">
+          <div class="h2">Создать сделку</div>
+          <label class="field">
+            <div class="label">Описание</div>
+            <input id="dealDesc" placeholder="Например: Дизайн логотипа / услуга / цифровой товар" maxlength="120"/>
+          </label>
+          <label class="field">
+            <div class="label">Сумма (₽)</div>
+            <input id="dealAmount" type="number" min="1" step="1" placeholder="500"/>
+          </label>
+          <label class="field">
+            <div class="label">Роль</div>
+            <select id="dealRole">
+              <option value="seller">Я продавец</option>
+              <option value="buyer">Я покупатель</option>
+            </select>
+          </label>
+          <button class="btn primary" id="btnCreateDeal">Создать и получить ссылку</button>
+          <div class="hint" id="dealCreateHint"></div>
+        </section>
+
+        <section class="card hidden" id="dealView">
+          <div class="cardHead">
+            <div>
+              <div class="h1" id="dealViewTitle">Сделка</div>
+              <div class="muted" id="dealViewMeta">…</div>
+            </div>
+            <div class="pill" id="dealStatus">…</div>
+          </div>
+
+          <div class="kv">
+            <div><span>Сумма</span><b id="dealViewAmount">0 ₽</b></div>
+            <div><span>Комиссия</span><b id="dealViewFee">0 ₽</b></div>
+          </div>
+
+          <div class="actions" id="dealActions"></div>
+          <div class="hint" id="dealHint"></div>
+        </section>
+      </section>
+
+      <section class="tabPanel hidden" data-panel="topup">
+        <section class="card">
+          <div class="h1">Пополнение</div>
+          <div class="muted">Создай заявку. Админ подтвердит после оплаты.</div>
+
+          <label class="field">
+            <div class="label">Сумма (₽)</div>
+            <input id="topupAmount" type="number" min="1" step="1" placeholder="500"/>
+          </label>
+
+          <label class="field">
+            <div class="label">Комментарий</div>
+            <input id="topupNote" maxlength="120" placeholder="Например: СБП, время, банк"/>
+          </label>
+
+          <button class="btn primary" id="btnTopup">Отправить заявку</button>
+          <div class="hint" id="topupHint"></div>
+        </section>
+
+        <section class="card">
+          <div class="h2">Мои заявки</div>
+          <div class="list" id="topupList"></div>
+        </section>
+      </section>
+
+      <section class="tabPanel hidden" data-panel="profile">
+        <section class="card">
+          <div class="h1">Профиль</div>
+          <div class="kv">
+            <div><span>ID</span><b id="meId">…</b></div>
+            <div><span>Username</span><b id="meUser">…</b></div>
+          </div>
+          <button class="btn" id="btnCopyMyId">📋 Скопировать мой ID</button>
+          <button class="btn" id="btnOpenBot">🤖 Открыть бота</button>
+          <div class="hint">Если что-то сломалось — жми “Обновить” на главной.</div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="foot">MVP • Railway • FastAPI + aiogram</footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
