@@ -1,31 +1,25 @@
-import hashlib
 import hmac
+import hashlib
 from urllib.parse import parse_qsl
-from typing import Dict, Any
 
-def verify_init_data(init_data: str, bot_token: str) -> Dict[str, Any]:
-    # Telegram WebApp initData validation:
-    # https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
-    if not init_data:
-        raise ValueError("No initData")
 
-    data = dict(parse_qsl(init_data, keep_blank_values=True))
-    received_hash = data.pop("hash", "")
-    if not received_hash:
-        raise ValueError("No hash")
+def verify_telegram_init_data(init_data: str, bot_token: str) -> bool:
+    parsed_data = dict(parse_qsl(init_data, strict_parsing=True))
 
-    check_arr = []
-    for k in sorted(data.keys()):
-        check_arr.append(f"{k}={data[k]}")
-    check_string = "\n".join(check_arr)
+    hash_value = parsed_data.pop("hash", None)
+    if not hash_value:
+        return False
 
-    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    calc_hash = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    data_check_string = "\n".join(
+        f"{k}={v}" for k, v in sorted(parsed_data.items())
+    )
 
-    if not hmac.compare_digest(calc_hash, received_hash):
-        raise ValueError("Bad initData hash")
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
 
-    # user field is JSON string
-    import json
-    user = json.loads(data.get("user", "{}"))
-    return user
+    hmac_hash = hmac.new(
+        secret_key,
+        data_check_string.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac_hash == hash_value
