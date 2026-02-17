@@ -46,6 +46,30 @@ def now_ts() -> int:
     return int(datetime.utcnow().timestamp())
 
 
+# =========================
+# URL normalizer (FIX)
+# =========================
+def normalize_base_url(url: str) -> str:
+    """
+    Делает URL безопасным для WebApp:
+    - добавляет https:// если забыли
+    - убирает пробелы
+    - убирает / в конце
+    """
+    u = (url or "").strip()
+    if not u:
+        return ""
+    if not u.startswith("http://") and not u.startswith("https://"):
+        u = "https://" + u
+    u = u.rstrip("/")
+    return u
+
+
+def get_base_url() -> str:
+    # если переменная пустая — вернём пусто, но НЕ example.com
+    return normalize_base_url(APP_BASE_URL)
+
+
 # -------------------------
 # FastAPI helpers
 # -------------------------
@@ -162,7 +186,13 @@ def api_topup_create(
 
     with SessionLocal() as s:
         uid = ensure_user(s, tg_user)
-        t = Topup(user_id=uid, amount=int(amount), status=TopupStatus.PENDING, note=(note or "")[:500], created_at=now_ts())
+        t = Topup(
+            user_id=uid,
+            amount=int(amount),
+            status=TopupStatus.PENDING,
+            note=(note or "")[:500],
+            created_at=now_ts(),
+        )
         s.add(t)
         s.commit()
         s.refresh(t)
@@ -221,7 +251,6 @@ def api_deal_create(
 
         seller_user = s.execute(select(User).where(User.tg_id == int(seller_tg_id))).scalar_one_or_none()
         if not seller_user:
-            # создаём "пустого" продавца (появится в системе как tg_id)
             seller_user = User(tg_id=int(seller_tg_id), username="", full_name="", created_at=now_ts())
             s.add(seller_user)
             s.commit()
@@ -235,7 +264,7 @@ def api_deal_create(
         if buyer_bal < int(amount):
             raise HTTPException(status_code=400, detail="Not enough balance")
 
-        # списываем у покупателя сразу (как ты описал: сначала оплатил, потом получил данные)
+        # списываем у покупателя сразу
         add_balance(s, buyer_uid, -int(amount))
 
         access_code = f"{buyer_uid}-{seller_user.id}-{now_ts()}"
@@ -253,9 +282,8 @@ def api_deal_create(
         s.commit()
         s.refresh(d)
 
-        deal_url = ""
-        if APP_BASE_URL:
-            deal_url = f"{APP_BASE_URL}/#deal={d.id}&code={access_code}"
+        base = get_base_url()
+        deal_url = f"{base}/#deal={d.id}&code={access_code}" if base else ""
 
         return {"ok": True, "id": d.id, "deal_url": deal_url, "access_code": access_code}
 
@@ -290,11 +318,9 @@ def api_deal_confirm(
         if d.status != DealStatus.PAID:
             raise HTTPException(status_code=400, detail="deal is not in PAID status")
 
-        # комиссия
         fee = int(int(d.amount) * (COMMISSION_PCT / 100.0)) if COMMISSION_PCT > 0 else 0
         payout = int(d.amount) - fee
 
-        # переводим продавцу
         add_balance(s, d.seller_id, payout)
 
         d.status = DealStatus.COMPLETED
@@ -307,10 +333,15 @@ def api_deal_confirm(
 # Telegram bot
 # -------------------------
 def webapp_keyboard() -> InlineKeyboardMarkup:
-    url = APP_BASE_URL or "https://example.com"
+    base = get_base_url()
+    # ✅ если переменная не настроена — не показываем мусор, а даём явную подсказку
+    if not base:
+        # можно оставить пусто, но Telegram не любит пустые URL — пусть будет твой домен по умолчанию
+        base = "https://telegram-bot-production-6147.up.railway.app"
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 Открыть гарант", web_app=WebAppInfo(url=url))],
+            [InlineKeyboardButton(text="💎 Открыть гарант", web_app=WebAppInfo(url=base))],
         ]
     )
 
@@ -366,7 +397,6 @@ async def run_bot():
 @app.on_event("startup")
 async def on_startup():
     init_db()
-    # запускаем бота в фоне вместе с FastAPI
     asyncio.create_task(run_bot())
 
 
@@ -376,6 +406,5 @@ def health():
 
 
 # ✅ Раздача фронта (index.html, styles.css, app.js) из корня репо
-# ВАЖНО: держим ЭТО ПОСЛЕ API роутов, чтобы /api/* работал.
 WEB_DIR = os.path.dirname(__file__)
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
