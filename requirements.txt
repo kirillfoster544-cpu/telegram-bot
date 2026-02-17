@@ -1,7 +1,6 @@
-aiogram==3.6.0
-pydantic==2.6.4
-aiohttp==3.9.5
-python-dotenv==1.0.1
-
-fastapi==0.110.0
-uvicorn==0.27.1
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+SQLAlchemy==2.0.36
+aiosqlite==0.20.0
+python-multipart==0.0.12
+pydantic==2.9.2
