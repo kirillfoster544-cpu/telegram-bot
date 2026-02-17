@@ -1,7 +1,4 @@
-fastapi==0.115.8
-uvicorn[standard]==0.30.6
-aiogram==3.7.0
-sqlalchemy==2.0.32
-asyncpg==0.29.0
+aiogram==3.4.1
+pydantic==2.5.3
+aiohttp==3.9.5
 python-dotenv==1.0.1
-pydantic==2.8.2
