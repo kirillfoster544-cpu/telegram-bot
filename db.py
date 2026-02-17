@@ -1,85 +1,84 @@
 import os
-from datetime import datetime
-from sqlalchemy import (
-    Column, Integer, BigInteger, String, DateTime, Enum, ForeignKey, Boolean
+import secrets
+
+from sqlalchemy import create_engine, Integer, String, Text, ForeignKey
+from sqlalchemy.orm import declarative_base, sessionmaker, Mapped, mapped_column
+
+DB_PATH = os.getenv("DB_PATH", "guarant.sqlite3")
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    pool_pre_ping=True,
 )
-from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.sql import func
-import enum
 
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-if not DATABASE_URL:
-    # fallback (dev only)
-    DATABASE_URL = "sqlite+aiosqlite:///./dev.sqlite3"
-
-# Railway Postgres обычно вида: postgres://... → нужно postgres+asyncpg://
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
-class TopupStatus(str, enum.Enum):
+
+class TopupStatus:
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
 
-class DealStatus(str, enum.Enum):
-    CREATED = "CREATED"      # created by one side, waiting second side
-    FUNDED = "FUNDED"        # buyer paid into escrow
-    DELIVERED = "DELIVERED"  # seller marked delivered
-    RELEASED = "RELEASED"    # buyer confirmed -> seller credited
-    REFUNDED = "REFUNDED"    # admin refunded -> buyer credited
-    DISPUTE = "DISPUTE"      # dispute opened
+
+class DealStatus:
+    CREATED = "CREATED"
+    FUNDED = "FUNDED"
+    DELIVERED = "DELIVERED"
+    RELEASED = "RELEASED"
+    DISPUTE = "DISPUTE"
+    REFUNDED = "REFUNDED"
+
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(BigInteger, primary_key=True)  # telegram user id
-    username = Column(String(64), default="")
-    full_name = Column(String(128), default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tg_id: Mapped[int] = mapped_column(Integer, unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    full_name: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    created_at: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    balance = relationship("Balance", uselist=False, back_populates="user")
 
 class Balance(Base):
     __tablename__ = "balances"
-    user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
-    amount = Column(Integer, default=0)  # rubles integer
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user = relationship("User", back_populates="balance")
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
+    amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
 
 class Topup(Base):
     __tablename__ = "topups"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), index=True)
-    amount = Column(Integer, nullable=False)
-    note = Column(String(200), default="")
-    status = Column(Enum(TopupStatus), default=TopupStatus.PENDING)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default=TopupStatus.PENDING, nullable=False)
+    created_at: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
 
 class Deal(Base):
     __tablename__ = "deals"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    public_code = Column(String(16), unique=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    public_code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
 
-    description = Column(String(140), default="")
-    amount = Column(Integer, nullable=False)
-    fee = Column(Integer, default=0)
-    status = Column(Enum(DealStatus), default=DealStatus.CREATED)
+    description: Mapped[str] = mapped_column(String(140), default="", nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    fee: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    seller_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
-    buyer_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    creator_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    creator_role: Mapped[str] = mapped_column(String(16), default="buyer", nullable=False)
 
-    created_by = Column(BigInteger, nullable=False)  # who created
-    created_at = Column(DateTime, default=datetime.utcnow)
+    buyer_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    seller_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
 
-    dispute_opened = Column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(16), default=DealStatus.CREATED, nullable=False)
+    created_at: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    @staticmethod
+    def gen_public_code() -> str:
+        return secrets.token_urlsafe(9).replace("-", "").replace("_", "")[:12].lower()
+
+
+def init_db():
+    Base.metadata.create_all(bind=engine)

@@ -56,7 +56,7 @@
           <ol class="steps">
             <li><b>Пополнение</b> → заявка → админ подтверждает.</li>
             <li><b>Создаёшь сделку</b> и кидаешь ссылку второй стороне.</li>
-            <li><b>Покупатель оплачивает</b> сумму с баланса → в резерв сделки.</li>
+            <li><b>Покупатель оплачивает</b> сумму с баланса → деньги “внутри” до подтверждения.</li>
             <li><b>Продавец отмечает “Выполнено”</b>.</li>
             <li><b>Покупатель подтверждает</b> → деньги продавцу на баланс.</li>
           </ol>
@@ -76,7 +76,7 @@
           <div class="h2">Создать сделку</div>
           <label class="field">
             <div class="label">Описание</div>
-            <input id="dealDesc" placeholder="Например: Дизайн логотипа / услуга / цифровой товар" maxlength="120"/>
+            <input id="dealDesc" placeholder="Например: аккаунт / услуга / цифровой товар" maxlength="120"/>
           </label>
           <label class="field">
             <div class="label">Сумма (₽)</div>
@@ -141,11 +141,10 @@
         <section class="card">
           <div class="h1">Профиль</div>
           <div class="kv">
-            <div><span>ID</span><b id="meId">…</b></div>
+            <div><span>ID (TG)</span><b id="meId">…</b></div>
             <div><span>Username</span><b id="meUser">…</b></div>
           </div>
           <button class="btn" id="btnCopyMyId">📋 Скопировать мой ID</button>
-          <button class="btn" id="btnOpenBot">🤖 Открыть бота</button>
           <div class="hint">Если что-то сломалось — жми “Обновить” на главной.</div>
         </section>
       </section>

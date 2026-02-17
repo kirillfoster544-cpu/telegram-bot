@@ -1,5 +1,4 @@
-fastapi>=0.110,<1.0
-uvicorn[standard]>=0.27,<1.0
-aiogram>=3.6,<4.0
-sqlalchemy>=2.0,<3.0
-aiosqlite>=0.19,<1.0
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+aiogram==3.15.0
+SQLAlchemy==2.0.36

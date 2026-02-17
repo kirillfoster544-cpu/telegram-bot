@@ -67,8 +67,8 @@ function tag(status){
   if(status==="FUNDED") return `<span class="tag wait">оплачено</span>`;
   if(status==="DELIVERED") return `<span class="tag wait">выполнено</span>`;
   if(status==="RELEASED") return `<span class="tag ok">завершено</span>`;
-  if(status==="REFUNDED") return `<span class="tag bad">возврат</span>`;
   if(status==="DISPUTE") return `<span class="tag warn">спор</span>`;
+  if(status==="REFUNDED") return `<span class="tag bad">возврат</span>`;
   return `<span class="tag">—</span>`;
 }
 
@@ -113,14 +113,18 @@ function renderTopups(){
 }
 
 async function loadAll(){
-  state.me = await api("/api/me");
+  const me = await api("/api/me");
+  state.me = me;
   renderMe();
+
   const b = await api("/api/balance");
   state.balance = b.balance;
   renderBalance();
-  state.deals = (await api("/api/deals")).items;
+
+  state.deals = (await api("/api/deals")).items || [];
   renderDeals();
-  state.topups = (await api("/api/topups")).items;
+
+  state.topups = (await api("/api/topups")).items || [];
   renderTopups();
 }
 
@@ -145,7 +149,7 @@ function showDeal(d){
   document.getElementById("dealViewMeta").textContent = d.description;
   document.getElementById("dealStatus").textContent = d.status;
   document.getElementById("dealViewAmount").textContent = rub(d.amount);
-  document.getElementById("dealViewFee").textContent = rub(d.fee);
+  document.getElementById("dealViewFee").textContent = rub(d.fee || 0);
 
   const act = document.getElementById("dealActions");
   act.innerHTML = "";
@@ -153,7 +157,6 @@ function showDeal(d){
   const hint = document.getElementById("dealHint");
   hint.textContent = "";
 
-  // Buttons based on status/role
   const btn = (text, cls, fn)=> {
     const b = document.createElement("button");
     b.className = "btn "+(cls||"");
@@ -170,16 +173,35 @@ function showDeal(d){
       btn("Присоединиться", "primary", async ()=>{
         await api(`/api/deals/${d.public_code}/join`, "POST");
         await refreshDeal();
+        await loadAll();
+      });
+    }
+    if(d.can_pay){
+      btn("💳 Оплатить с баланса", "primary", async ()=>{
+        await api(`/api/deals/${d.id}/pay`, "POST");
+        await loadAll(); await refreshDeal();
       });
     }
   }
 
   if(d.status==="FUNDED"){
-    hint.textContent = "Деньги в резерве. Ждём 'Выполнено' от продавца.";
+    hint.textContent = "Деньги оплачены. Ждём “Выполнено” от продавца.";
+    if(d.can_deliver){
+      btn("📦 Выполнено", "", async ()=>{
+        await api(`/api/deals/${d.id}/deliver`, "POST");
+        await refreshDeal();
+      });
+    }
+    if(d.can_dispute){
+      btn("⚠️ Открыть спор", "warn", async ()=>{
+        await api(`/api/deals/${d.id}/dispute`, "POST");
+        await refreshDeal();
+      });
+    }
   }
 
   if(d.status==="DELIVERED"){
-    hint.textContent = "Продавец отметил 'Выполнено'. Проверь и подтверди.";
+    hint.textContent = "Продавец отметил “Выполнено”. Проверь и подтверди.";
     if(d.can_confirm){
       btn("✅ Подтвердить", "primary", async ()=>{
         await api(`/api/deals/${d.id}/confirm`, "POST");
@@ -194,21 +216,6 @@ function showDeal(d){
     }
   }
 
-  if(d.status==="CREATED" || d.status==="FUNDED" || d.status==="DELIVERED"){
-    if(d.can_pay){
-      btn("💳 Оплатить с баланса", "primary", async ()=>{
-        await api(`/api/deals/${d.id}/pay`, "POST");
-        await loadAll(); await refreshDeal();
-      });
-    }
-    if(d.can_deliver){
-      btn("📦 Выполнено", "", async ()=>{
-        await api(`/api/deals/${d.id}/deliver`, "POST");
-        await refreshDeal();
-      });
-    }
-  }
-
   if(d.status==="DISPUTE"){
     hint.textContent = "Спор открыт. Решение принимает админ.";
   }
@@ -216,14 +223,14 @@ function showDeal(d){
 
 async function refreshDeal(){
   if(!state.currentDeal) return;
+  // if opened by code, state.currentDeal has id
   const d = await api(`/api/deals/${state.currentDeal.id}`);
   showDeal(d);
 }
 
 function parseDealFromUrl(){
   const u = new URL(location.href);
-  const code = u.searchParams.get("deal");
-  return code;
+  return u.searchParams.get("deal");
 }
 
 async function openDealByCode(code){
@@ -239,7 +246,6 @@ document.querySelectorAll(".tab").forEach(b=>{
 });
 
 document.getElementById("btnRefresh").onclick = loadAll;
-
 document.getElementById("goCreateDeal").onclick = ()=>{ setTab("deals"); showEditor(); };
 document.getElementById("btnNewDeal").onclick = ()=> showEditor();
 document.getElementById("goTopup").onclick = ()=> setTab("topup");
@@ -248,10 +254,6 @@ document.getElementById("goSupport").onclick = ()=> toast("Поддержка: �
 document.getElementById("btnCopyMyId").onclick = async ()=>{
   await navigator.clipboard.writeText(String(state.me?.id||""));
   toast("ID скопирован");
-};
-document.getElementById("btnOpenBot").onclick = ()=>{
-  if(tg?.openTelegramLink) tg.openTelegramLink("https://t.me/"+(tg?.initDataUnsafe?.user?.username||""));
-  else toast("Открой бота вручную");
 };
 
 function showEditor(){
